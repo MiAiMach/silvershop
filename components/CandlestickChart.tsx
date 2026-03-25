@@ -39,8 +39,7 @@ const CandlestickChart = ({
   const chartRef = useRef<IChartApi | null>(null);
   // Track instance of the candlestick series
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-
-  const [loading, setLoading] = useState(false);
+  const latestRequestRef = useRef(0);
   const [period, setPeriod] = useState(initialPeriod);
   //Refetching data for chart whenever the period changes
   const [ohlcData, setOhlcData] = useState<OHLCData[]>(data ?? []);
@@ -50,14 +49,15 @@ const CandlestickChart = ({
   const fetchOHLCData = async (selectedPeriod: Period) => {
     try {
       const { days } = PERIOD_CONFIG[selectedPeriod];
-
+      const requestId = ++latestRequestRef.current;
       const newData = await fetcher<OHLCData[]>(`/coins/${coinId}/ohlc`, {
         vs_currency: "usd",
         days,
         precision: "full",
       });
-      // if the data changes
-      setOhlcData(newData ?? []);
+      if (requestId === latestRequestRef.current) {
+        setOhlcData(newData ?? []);
+      }
     } catch (e) {
       console.error("Failed to fetch OLHCData", e);
     }
@@ -79,13 +79,13 @@ const CandlestickChart = ({
   useEffect(() => {
     // feeding data into chart
     const container = chartContainerRef.current;
-    if (!container) return;
-
+    if (!candleSeriesRef.current) return;
     const showTime = ["daily", "weekly", "monthly"].includes(period);
-    const chart = createChart(container, {
-      ...getChartConfig(height, showTime),
-      width: container.clientWidth,
+    chartRef.current?.applyOptions({
+      timeScale: { timeVisible: showTime, secondsVisible: false },
     });
+
+    const convertedToSeconds = ohlcData.map((item)=> [Math.floor(item[0] / 1000)]);
 
     const series = chart.addSeries(CandlestickSeries, getCandlestickConfig());
 
@@ -148,7 +148,7 @@ const CandlestickChart = ({
                 period === value ? "config-button-active" : "config-button"
               }
               onClick={() => handlePeriodChange(value)}
-              disabled={loading}
+              disabled={isPending}
             >
               {label}
             </button>
