@@ -34,7 +34,7 @@ export async function fetcher<T>(
   const response = await fetch(url, {
     // need headers to make a valid request
     headers: {
-      "x-cg-pro-api-key": API_KEY,
+      "x-cg-demo-api-key": API_KEY,
       "Content-Type": "application/json",
     } as Record<string, string>,
     next: { revalidate },

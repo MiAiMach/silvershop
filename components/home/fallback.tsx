@@ -2,6 +2,7 @@ import React from "react";
 import DataTable from "@/components/DataTable";
 import { cn } from "@/lib/utils";
 
+// Empty UI displays whenever page refreshes
 export const CoinOverviewFallback = () => {
   return (
     <div id="coin-overview-fallback">
