@@ -17,7 +17,7 @@ export async function fetcher<T>(
   revalidate = 60
 ): Promise<T> {
   // need to figure out which URL we're trying to call. We need to construct the URL
-  // Constructing https://pro-api.coingecko.com/api/v3 and then appending endpoints and additional params
+  // Constructing https://api.coingecko.com/api/v3 and then appending endpoints and additional params
   const url = qs.stringifyUrl(
     {
       url: `${BASE_URL}/${endpoint}`,

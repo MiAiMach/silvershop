@@ -5,7 +5,6 @@
 import {
   getCandlestickConfig,
   getChartConfig,
-  navItems,
   PERIOD_BUTTONS,
   PERIOD_CONFIG,
 } from "@/constants";
@@ -17,15 +16,7 @@ import {
   IChartApi,
   ISeriesApi,
 } from "lightweight-charts";
-import {
-  useState,
-  useRef,
-  useTransition,
-  useEffect,
-  use,
-  useEffectEvent,
-  useLayoutEffect,
-} from "react";
+import { useState, useRef, useTransition, useEffect } from "react";
 
 const CandlestickChart = ({
   children,
@@ -39,8 +30,7 @@ const CandlestickChart = ({
   const chartRef = useRef<IChartApi | null>(null);
   // Track instance of the candlestick series
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-
-  const [loading, setLoading] = useState(false);
+  const latestRequestRef = useRef(0);
   const [period, setPeriod] = useState(initialPeriod);
   //Refetching data for chart whenever the period changes
   const [ohlcData, setOhlcData] = useState<OHLCData[]>(data ?? []);
@@ -50,14 +40,15 @@ const CandlestickChart = ({
   const fetchOHLCData = async (selectedPeriod: Period) => {
     try {
       const { days } = PERIOD_CONFIG[selectedPeriod];
-
+      const requestId = latestRequestRef.current;
       const newData = await fetcher<OHLCData[]>(`/coins/${coinId}/ohlc`, {
         vs_currency: "usd",
         days,
         precision: "full",
       });
-      // if the data changes
-      setOhlcData(newData ?? []);
+      if (requestId === latestRequestRef.current) {
+        setOhlcData(newData ?? []);
+      }
     } catch (e) {
       console.error("Failed to fetch OLHCData", e);
     }
@@ -75,13 +66,12 @@ const CandlestickChart = ({
   };
 
   // useEffect to take that data and append it to chart
-
   useEffect(() => {
-    // feeding data into chart
     const container = chartContainerRef.current;
     if (!container) return;
 
     const showTime = ["daily", "weekly", "monthly"].includes(period);
+
     const chart = createChart(container, {
       ...getChartConfig(height, showTime),
       width: container.clientWidth,
@@ -89,34 +79,35 @@ const CandlestickChart = ({
 
     const series = chart.addSeries(CandlestickSeries, getCandlestickConfig());
 
-    series.setData(convertOHLCData(ohlcData));
-
-    // makes candlesticks fill out entire chart
-    chart.timeScale().fitContent();
-
-    // store chart instance into refs for later updates
     chartRef.current = chart;
     candleSeriesRef.current = series;
 
-    // manually handle the observer (which is for resizing)
-
-    const observer = new ResizeObserver((entires) => {
-      if (!entires.length) return;
-      chart.applyOptions({ width: entires[0].contentRect.width });
+    const observer = new ResizeObserver((entries) => {
+      if (!entries.length) return;
+      chart.applyOptions({ width: entries[0].contentRect.width });
     });
+
     observer.observe(container);
 
     return () => {
       observer.disconnect();
-      chart.remove(); // destroying chart instance to prevent memory leaks
+      chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
     };
   }, [height]);
 
-  // make the chart work with different periods
   useEffect(() => {
-    if (!candleSeriesRef.current) return;
+    if (!chartRef.current || !candleSeriesRef.current) return;
+
+    const showTime = ["daily", "weekly", "monthly"].includes(period);
+
+    chartRef.current.applyOptions({
+      timeScale: {
+        timeVisible: showTime,
+        secondsVisible: false,
+      },
+    });
 
     const convertedToSeconds = ohlcData.map(
       (item) =>
@@ -128,9 +119,9 @@ const CandlestickChart = ({
           item[4],
         ] as OHLCData
     );
-    const converted = convertOHLCData(convertedToSeconds);
-    candleSeriesRef.current.setData(converted);
-    chartRef.current?.timeScale().fitContent();
+
+    candleSeriesRef.current.setData(convertOHLCData(convertedToSeconds));
+    chartRef.current.timeScale().fitContent();
   }, [ohlcData, period]);
 
   return (
@@ -148,7 +139,7 @@ const CandlestickChart = ({
                 period === value ? "config-button-active" : "config-button"
               }
               onClick={() => handlePeriodChange(value)}
-              disabled={loading}
+              disabled={isPending}
             >
               {label}
             </button>
