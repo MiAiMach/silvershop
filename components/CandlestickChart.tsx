@@ -5,7 +5,6 @@
 import {
   getCandlestickConfig,
   getChartConfig,
-  navItems,
   PERIOD_BUTTONS,
   PERIOD_CONFIG,
 } from "@/constants";
@@ -17,15 +16,7 @@ import {
   IChartApi,
   ISeriesApi,
 } from "lightweight-charts";
-import {
-  useState,
-  useRef,
-  useTransition,
-  useEffect,
-  use,
-  useEffectEvent,
-  useLayoutEffect,
-} from "react";
+import { useState, useRef, useTransition, useEffect } from "react";
 
 const CandlestickChart = ({
   children,
@@ -49,7 +40,7 @@ const CandlestickChart = ({
   const fetchOHLCData = async (selectedPeriod: Period) => {
     try {
       const { days } = PERIOD_CONFIG[selectedPeriod];
-      const requestId = ++latestRequestRef.current;
+      const requestId = latestRequestRef.current;
       const newData = await fetcher<OHLCData[]>(`/coins/${coinId}/ohlc`, {
         vs_currency: "usd",
         days,
@@ -75,48 +66,48 @@ const CandlestickChart = ({
   };
 
   // useEffect to take that data and append it to chart
-
   useEffect(() => {
-    // feeding data into chart
     const container = chartContainerRef.current;
-    if (!candleSeriesRef.current) return;
-    const showTime = ["daily", "weekly", "monthly"].includes(period);
-    chartRef.current?.applyOptions({
-      timeScale: { timeVisible: showTime, secondsVisible: false },
-    });
+    if (!container) return;
 
-    const convertedToSeconds = ohlcData.map((item)=> [Math.floor(item[0] / 1000)]);
+    const showTime = ["daily", "weekly", "monthly"].includes(period);
+
+    const chart = createChart(container, {
+      ...getChartConfig(height, showTime),
+      width: container.clientWidth,
+    });
 
     const series = chart.addSeries(CandlestickSeries, getCandlestickConfig());
 
-    series.setData(convertOHLCData(ohlcData));
-
-    // makes candlesticks fill out entire chart
-    chart.timeScale().fitContent();
-
-    // store chart instance into refs for later updates
     chartRef.current = chart;
     candleSeriesRef.current = series;
 
-    // manually handle the observer (which is for resizing)
-
-    const observer = new ResizeObserver((entires) => {
-      if (!entires.length) return;
-      chart.applyOptions({ width: entires[0].contentRect.width });
+    const observer = new ResizeObserver((entries) => {
+      if (!entries.length) return;
+      chart.applyOptions({ width: entries[0].contentRect.width });
     });
+
     observer.observe(container);
 
     return () => {
       observer.disconnect();
-      chart.remove(); // destroying chart instance to prevent memory leaks
+      chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
     };
   }, [height]);
 
-  // make the chart work with different periods
   useEffect(() => {
-    if (!candleSeriesRef.current) return;
+    if (!chartRef.current || !candleSeriesRef.current) return;
+
+    const showTime = ["daily", "weekly", "monthly"].includes(period);
+
+    chartRef.current.applyOptions({
+      timeScale: {
+        timeVisible: showTime,
+        secondsVisible: false,
+      },
+    });
 
     const convertedToSeconds = ohlcData.map(
       (item) =>
@@ -128,9 +119,9 @@ const CandlestickChart = ({
           item[4],
         ] as OHLCData
     );
-    const converted = convertOHLCData(convertedToSeconds);
-    candleSeriesRef.current.setData(converted);
-    chartRef.current?.timeScale().fitContent();
+
+    candleSeriesRef.current.setData(convertOHLCData(convertedToSeconds));
+    chartRef.current.timeScale().fitContent();
   }, [ohlcData, period]);
 
   return (
