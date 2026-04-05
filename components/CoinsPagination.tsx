@@ -45,6 +45,7 @@ const CoinsPagination = ({
                 <span className="ellipsis">...</span>
               ) : (
                 <PaginationLink
+                  href={`/coins?page=${page}`}
                   onClick={() => handlePageChange(page)}
                   className={cn("page-link", {
                     "page-link-active": currentPage === page,
@@ -59,7 +60,7 @@ const CoinsPagination = ({
 
         <PaginationItem className="pagination-control next">
           <PaginationNext
-            onClick={() => !isLastPage && handlePageChange(currentPage - 1)}
+            onClick={() => !isLastPage && handlePageChange(currentPage + 1)}
             className={isLastPage ? "control-disabled" : "control-button"}
           />
         </PaginationItem>
